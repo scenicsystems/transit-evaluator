@@ -1,5 +1,5 @@
 # transit-evaluator
-Transit Evaluator (TE) is a simple project that utilizes the Google Maps API to calculate the time efficiency of a given city. The user inputs a city of their choosing, and TE returns time-based statistics about that city's bus system.
+Transit Evaluator (TE) is a simple project that utilizes the Google Maps API to calculate the time efficiency of a given city's public transportation system. The user inputs a city of their choosing, and TE returns time-based statistics about that city's bus system.
 
 ## Usage
 TE requires a valid Google Maps API key. You can obtain one by checking [the official Google Maps API page.](https://developers.google.com/maps) The API key is saved to `key.txt` in the same folder that the program is located.
