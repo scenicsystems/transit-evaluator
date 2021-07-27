@@ -1,0 +1,102 @@
+import requests
+import json
+import random
+import statistics
+
+# reads api key from file
+apiFile = open('key.txt', 'r')
+api_key = apiFile.read()
+apiFile.close()
+
+# base urls for connecting to google maps api
+urlDistance = 'https://maps.googleapis.com/maps/api/distancematrix/json?units-imperial&'
+urlGeo = 'https://maps.googleapis.com/maps/api/geocode/json?'
+
+# connects to google maps api and returns request based on reason (ex. distance between two points uses distance matrix api)
+def getRequest(type, address, start, end):
+    if (type == 'drive'):
+        return requests.get(urlDistance + "origins=" + str(start[0]) + "," + str(start[1]) + "&destinations=" + str(end[0]) + "," + str(end[1]) + "&key=" + api_key)
+    if (type == 'bus'):
+        return requests.get(urlDistance + "origins=" + str(start[0]) + "," + str(start[1]) + "&destinations=" + str(end[0]) + "," + str(end[1]) + "&mode=transit" + "&transit_mode=bus" + "&departure_time=1626976800" + "&key=" + api_key)
+    if (type == 'geo'):
+        return requests.get(urlGeo + "address=" + home.replace(" ", "+") + "&key=" + api_key)
+    pass
+
+
+# returns boundary of given city as two-dimensional box
+def getBoundary(geo):
+	# southwest boundary, presented as (x,y)
+    souWest = [
+    (geo.json()["results"][0]["geometry"]["viewport"]["southwest"]["lat"]),
+    (geo.json()["results"][0]["geometry"]["viewport"]["southwest"]["lng"])
+    ]
+    # northeast boundary, presented as (x,y)
+    norEast = [
+    (geo.json()["results"][0]["geometry"]["viewport"]["northeast"]["lat"]),
+    (geo.json()["results"][0]["geometry"]["viewport"]["northeast"]["lng"])
+    ]
+    return [souWest, norEast]
+
+# creates a random point within given boundary
+def pointGen(boundary):
+    pointList = []
+    pointList.append(random.uniform((boundary[0][0]), (boundary[1][0])))    # generates random x coordinate
+    pointList.append(random.uniform((boundary[0][1]), (boundary[1][1])))    # generates random y coordinate
+    return pointList
+
+# uses distance matrix to determine driving/bus times between points, returns in seconds
+def distanceCalc(firstpoint, secondpoint):
+    carJson = getRequest('drive', None, firstpoint, secondpoint)
+    busJson = getRequest('bus', None, firstpoint, secondpoint)
+    if (carJson.json()["rows"][0]["elements"][0]["status"] != 'OK'          # checks if path was found; if not, returns dummy data
+        or busJson.json()["rows"][0]["elements"][0]["status"] != 'OK'):
+            return [0, 0]
+    return [                                                                # returns time in seconds from json file
+    carJson.json()["rows"][0]["elements"][0]["duration"]["value"],
+    busJson.json()["rows"][0]["elements"][0]["duration"]["value"]
+    ]
+
+
+# user inputs city and number of random paths
+home = input("Enter city: ")
+instcount = int(input("Enter instance count: "))
+
+try:
+    newBound = getBoundary(getRequest('geo', home, None, None))
+except:
+    print("Error: invalid API key. Did you remember to put your key into key.txt?")
+    quit()
+newPointList = [[pointGen(newBound) for points in range(2)] for lines in range(instcount)]
+efficiency = []
+for trip in (range(instcount)):
+    carTime, busTime = distanceCalc(newPointList[trip][0], newPointList[trip][1])
+    if (carTime == 0 or busTime == 0):                                      # returns error message if no route found
+        print("Trip ignored: no route found!")
+        efficiency.append(None)
+    else:
+        efficiency.append(carTime / busTime)
+        print("[Trip " + str(trip + 1) + "]")
+        print("Car time: " + str(carTime) + "s")
+        print("Bus time: " + str(busTime) + "s")
+        print("Efficiency: " + str(efficiency[trip]))
+
+newEfficiency = [i for i in efficiency if i]
+totalEfficiency = statistics.mean(newEfficiency)
+effMedian = statistics.median_low(newEfficiency)
+effVariance = statistics.variance(newEfficiency)
+effStd = statistics.stdev(newEfficiency)
+transPrevalence = len(newEfficiency)                                        # number of routes succesfully found
+
+effWrite = '''
+    Overall Efficiency: %s
+    Transit Prevalence: %s/%s
+    Median: %s
+    Variance: %s
+    Std. Variation: %s
+    ''' %(str(totalEfficiency), str(transPrevalence), str(instcount), str(effMedian), str(effVariance), str(effStd))
+
+print(effWrite)
+fileName = (str(home) + '.txt')
+with open(fileName, 'w') as f:
+    f.write(effWrite)
+
